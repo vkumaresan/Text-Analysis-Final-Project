@@ -239,8 +239,6 @@ dep_top_terms %>%
   facet_wrap(~ topic, scales = "free") +
   coord_flip()
 
-
-
 ### Webscraping
 
 library(rvest)
