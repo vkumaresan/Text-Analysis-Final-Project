@@ -64,6 +64,12 @@ for (item in depression_tags_reddit){
   # depression_reddit = list.append(depression_reddit, corpus)
 }
 
+depression_reddit_total_2 <- rbind(depression_reddit_total, depression_reddit3)
+
+
+
+
+
 # Search by subreddit
 
 depression_subreddits_list <- c('depression', 'depression_help')
@@ -96,6 +102,11 @@ for (item in depression_subreddits_list){
   # corpus = unlist(sapply(posts, function(x) x$tags))
   # depression_reddit = list.append(depression_reddit, corpus)
 }
+
+depression_reddit_total_sub_2 <- rbind(depression_reddit_total_sub, depression_subreddits3)
+
+
+# In the future, add to one dataframe for search and one for subreddit, and then remove duplicates in each iteration.
 
 
 
