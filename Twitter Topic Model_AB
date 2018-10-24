@@ -1,0 +1,150 @@
+# Twitter Data Collection
+# Anna Berman
+
+
+# SET UP ------------------------------------------------------------------
+
+library(rtweet)
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(gtools)
+
+#Credentialing
+app_name<-"test_aeb100"
+consumer_key<-"jz0yNGON4gdni3WdqPskhGcdq"
+consumer_secret<-"RVMkCW1ZJfqJklgASFEDll9Z48IPB3zinYBZo1zdbnFRg6WpU2"
+access_token<-"1041738207988203523-WnjOymlOT6RWSI6nMl4Z75XXAGw1jn"
+access_token_secret<-"WCSD29t8btaJpS36FjzX1TNWBJY2nzjU3Xer5t9pVA4Ey"
+create_token(app=app_name, consumer_key=consumer_key, consumer_secret=consumer_secret)
+
+
+
+# DATA COLLECTION ---------------------------------------------------------
+
+## Search #depression tweets
+#depression_tweets <- search_tweets("#depression", n = 50, include_rts = FALSE)
+#head(depression_tweets$text)
+
+
+# Seach_tweets function
+# 11/20/18
+depression_tweets1 <- search_tweets("depression",
+                                   "lang:en", geocode = lookup_coords("usa"),
+                                   n = 10000, type = "recent", include_rts = FALSE)
+
+# 11/21/18
+depression_tweets2 <- search_tweets("depressed",
+                                   "lang:en", geocode = lookup_coords("usa"),
+                                   n = 10000, type = "recent", include_rts = FALSE)
+
+# 11/23/18
+depression_tweets3 <- search_tweets("depressed",
+                                    "lang:en", geocode = lookup_coords("usa"),
+                                    n = 18000, type = "recent", include_rts = FALSE)
+
+# 11/24/18
+depression_tweets4 <- search_tweets("depressed",
+                                    "lang:en", geocode = lookup_coords("usa"),
+                                    n = 10000, type = "recent", include_rts = FALSE)
+
+# Bind together new data
+depression_tweets <- rbind(depression_tweets1, depression_tweets2)
+depression_tweets <- rbind(depression_tweets, depression_tweets3)
+depression_tweets4$user_id <- NULL
+depression_tweets <- rbind(depression_tweets, depression_tweets4)
+depression_tweets <- depression_tweets[-duplicated(depression_tweets)]
+
+# Create standardized data table
+standard <- data.frame(id = seq(nrow(depression_tweets))) %>%
+    mutate(keyword = 'depressed',
+           platform = 'Twitter',
+           created_at = depression_tweets$created_at,
+           title = NA,
+           content = depression_tweets$text,
+           author = depression_tweets$screen_name,
+           url = depression_tweets$url,
+           likes = depression_tweets$favorite_count,
+           views = NA,
+           tags = depression_tweets$hashtags)
+
+# DESCRIPTIVE STATS -------------------------------------------------------
+
+# Plot frequency of tweets
+ts_plot(depression_tweets, "10 minutes") + 
+    ggplot2::theme_minimal() +
+    ggplot2::theme(plot.title = ggplot2::element_text(face="bold")) +
+    ggplot2::labs(
+        x = NULL, y = NULL,
+        title = "Frequency of Tweets about Depression from the Past Day",
+        subtitle = "Twitter status (tweet) counts aggregated using three-hour intervals",
+        caption = "\nSource: Data collected from Twitter's REST API via rtweet"
+    )
+
+
+# Geocode tweets
+geocoded <- lat_lng(depression_tweets)
+
+# Plot on a map of US
+library(maps)
+par(mar = c(0,0,0,0))
+maps::map("state", lwd = .25)
+with(geocoded, points(lng, lat, pch = 20, cex = .75, col = rgb(0, .3, .7, .75)))
+
+
+
+# NLP ---------------------------------------------------------------------
+
+# Create DTM 
+library(tm)
+depression_corpus <- Corpus(VectorSource(as.vector(depression_tweets$text)))
+depression_corpus = tm_map(depression_corpus, removeWords, append(stopwords('english'), c('https', 'co', 'amp', 'the'))) #remove stopwords
+depression_DTM <- DocumentTermMatrix(depression_corpus, control = list(wordLengths = c(2, Inf)))
+rowTotals <- apply(depression_DTM , 1, sum) #Find the sum of words in each Document
+depression_DTM   <- depression_DTM[rowTotals> 0, ]           #remove all docs without words
+
+
+# Topic Modeling
+library(topicmodels)
+library(tidyverse)
+library(tidytext)
+library(rvest)
+
+# Run a topic model with 10 topics
+topic_model<-LDA(depression_DTM, k=5, control = list(seed = 321)) # k = # of topics in corpus
+
+DEP_topics <- tidy(topic_model, matrix = "beta")
+
+# Get the top 10 most frequent words in each topic
+dep_top_terms <- 
+    DEP_topics %>%
+    group_by(topic) %>%
+    top_n(10, beta) %>%
+    ungroup() %>%
+    arrange(topic, -beta)
+
+# Plot the topics
+dep_top_terms %>%
+    mutate(term = reorder(term, beta)) %>%
+    ggplot(aes(term, beta, fill = factor(topic))) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~ topic, scales = "free") +
+    coord_flip()
+
+
+
+
+
+
+# STREAMING ---------------------------------------------------------------
+
+## stream depression tweets for a week (60 secs x 60 mins * 24 hours *  7 days)
+stream_tweets(
+    "depression, sad, depressed",
+    timeout = 60 * 60 * 24 * 1,
+    file_name = "tweetsaboutdepression.json",
+    parse = FALSE
+)
+
+## read in the data as a tidy tbl data frame
+depression_tidy <- parse_stream("tweetsaboutdepression.json")
