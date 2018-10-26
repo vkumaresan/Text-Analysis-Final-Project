@@ -5,11 +5,11 @@
 # SET UP ------------------------------------------------------------------
 setwd('/Users/annaberman/Desktop/703 Text Analysis/FinalProject')
 
-library(rtweet)
-library(ggplot2)
-library(dplyr)
-library(lubridate)
-library(gtools)
+library(rtweet) # scraping tweets
+library(ggplot2) # plots
+library(dplyr) # tidyverse
+library(lubridate) # easy date conversions
+library(jsonlite) # read and write json files
 
 #Credentialing
 app_name<-"test_aeb100"
@@ -37,6 +37,7 @@ create_token(app=app_name, consumer_key=consumer_key, consumer_secret=consumer_s
 depression_tweets1 <- search_tweets("depression",
                                    "lang:en", geocode = lookup_coords("usa"),
                                    n = 10000, type = "recent", include_rts = FALSE)
+
 
 # 11/21/18
 depression_tweets2 <- search_tweets("depressed",
@@ -87,6 +88,16 @@ standard <- data.frame(id = seq(nrow(depression_tweets))) %>%
 
 # Label the first keyword as 'depression' as opposed to 'depressed'
 standard[seq(17872), 'keyword'] <- 'depresssion'
+
+
+# Export as jsons
+write_json(depression_tweets1, './Raw Tweets/depression_tweets_181120.json')
+write_json(depression_tweets2, './Raw Tweets/depression_tweets_181121.json')
+write_json(depression_tweets3, './Raw Tweets/depression_tweets_181123.json')
+write_json(depression_tweets4, './Raw Tweets/depression_tweets_181124.json')
+write_json(depression_tweets5, './Raw Tweets/depression_tweets_181125.json')
+write_json(depression_tweets6, './Raw Tweets/depression_tweets_181126.json')
+write_json(standard, '.Raw Tweets/standard.json')
 
 
 # DESCRIPTIVE STATS -------------------------------------------------------
