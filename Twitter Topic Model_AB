@@ -3,6 +3,7 @@
 
 
 # SET UP ------------------------------------------------------------------
+setwd('/Users/annaberman/Desktop/703 Text Analysis/FinalProject')
 
 library(rtweet)
 library(ggplot2)
@@ -28,6 +29,10 @@ create_token(app=app_name, consumer_key=consumer_key, consumer_secret=consumer_s
 
 
 # Seach_tweets function
+# Pulling once a day
+# The first day I pulled 'depression' and then rethought my approach
+# I believe depressed is more likely to be associated with actually depressed people
+
 # 11/20/18
 depression_tweets1 <- search_tweets("depression",
                                    "lang:en", geocode = lookup_coords("usa"),
@@ -48,12 +53,24 @@ depression_tweets4 <- search_tweets("depressed",
                                     "lang:en", geocode = lookup_coords("usa"),
                                     n = 10000, type = "recent", include_rts = FALSE)
 
+# 11/25/18
+depression_tweets5 <- search_tweets("depressed",
+                                    "lang:en", geocode = lookup_coords("usa"),
+                                    n = 10000, type = "recent", include_rts = FALSE)
+
+# 11/26/18
+depression_tweets6 <- search_tweets("depressed",
+                                    "lang:en", geocode = lookup_coords("usa"),
+                                    n = 18000, type = "recent", include_rts = FALSE)
+
 # Bind together new data
 depression_tweets <- rbind(depression_tweets1, depression_tweets2)
 depression_tweets <- rbind(depression_tweets, depression_tweets3)
-depression_tweets4$user_id <- NULL
 depression_tweets <- rbind(depression_tweets, depression_tweets4)
+depression_tweets <- rbind(depression_tweets, depression_tweets5)
+depression_tweets <- rbind(depression_tweets, depression_tweets6)
 depression_tweets <- depression_tweets[-duplicated(depression_tweets)]
+
 
 # Create standardized data table
 standard <- data.frame(id = seq(nrow(depression_tweets))) %>%
@@ -68,32 +85,61 @@ standard <- data.frame(id = seq(nrow(depression_tweets))) %>%
            views = NA,
            tags = depression_tweets$hashtags)
 
+# Label the first keyword as 'depression' as opposed to 'depressed'
+standard[seq(17872), 'keyword'] <- 'depresssion'
+
+
 # DESCRIPTIVE STATS -------------------------------------------------------
 
-# Plot frequency of tweets
-ts_plot(depression_tweets, "10 minutes") + 
+# Plot time series of frequency of tweets
+ts_plot(depression_tweets, "30 minutes") + 
     ggplot2::theme_minimal() +
     ggplot2::theme(plot.title = ggplot2::element_text(face="bold")) +
     ggplot2::labs(
         x = NULL, y = NULL,
-        title = "Frequency of Tweets about Depression from the Past Day",
-        subtitle = "Twitter status (tweet) counts aggregated using three-hour intervals",
+        title = "Frequency of Tweets about Depression from the Past Week",
+        subtitle = "Twitter status (tweet) counts aggregated using 30 minute intervals",
         caption = "\nSource: Data collected from Twitter's REST API via rtweet"
     )
 
 
+# Plot frequency of tweets by the hour
+standard %>%
+    # Create temporary time_of_day variable 
+    mutate(time_of_day = hour(created_at) + minute(created_at)/60) %>%
+    ggplot() + 
+    # Plot in 5 minutes intervals
+    geom_histogram(mapping = aes(time_of_day), bins = 288, 
+                   fill = 'skyblue3', alpha = .8) +
+    theme_minimal() +
+    theme(plot.title = element_text(face = 'bold')) +
+    labs(title = 'Frequency of \'Depressed\' Tweets by the Hour', 
+         subtitle = 'Tweet counts aggregated by time of day',
+         caption = "Source: Data collected from Twitter's REST API via rtweet",
+         x = 'Time of Day (5 minute intervals, military time)',
+         y = 'Frequency of Tweets') +
+    xlim(c(0,24))
+    
+
+# Plot location of tweets
 # Geocode tweets
 geocoded <- lat_lng(depression_tweets)
+# How many tweets have location services turned on
+geo_num <- sum(!is.na(geocoded$lat))
+# Percentage of tweets with location servicees turned on
+geo_stat <- round(geo_num/nrow(geocoded)*100,1)
+
 
 # Plot on a map of US
 library(maps)
-par(mar = c(0,0,0,0))
+#par(mar = c(0,0,0,0))
 maps::map("state", lwd = .25)
-with(geocoded, points(lng, lat, pch = 20, cex = .75, col = rgb(0, .3, .7, .75)))
+with(geocoded, points(lng, lat, pch = 20, cex = .5, col = 'skyblue3'))
+title(paste('Geocoded Depression Tweets (',  geo_stat , '%)', sep = ''))
 
 
 
-# NLP ---------------------------------------------------------------------
+# TOPIC MODEL ---------------------------------------------------------------------
 
 # Create DTM 
 library(tm)
@@ -113,7 +159,8 @@ library(rvest)
 # Run a topic model with 10 topics
 topic_model<-LDA(depression_DTM, k=5, control = list(seed = 321)) # k = # of topics in corpus
 
-DEP_topics <- tidy(topic_model, matrix = "beta")
+DEP_topics <- tidytext::tidy(topic_model, matrix = "beta")
+
 
 # Get the top 10 most frequent words in each topic
 dep_top_terms <- 
@@ -133,18 +180,18 @@ dep_top_terms %>%
 
 
 
+# Run a topic model with 10 topics
+topic_model <- LDA(depression_DTM, k=5, control = list(seed = 321)) # k = # of topics in corpus
+topic_model_td <- tidy(topic_model)
 
 
 
-# STREAMING ---------------------------------------------------------------
+# Get the top 10 most frequent words in each topic
+dep_top_terms <- 
+    topid_model_td  %>%
+    group_by(topic) %>%
+    top_n(10, beta) %>%
+    ungroup() %>%
+    arrange(topic, -beta)
 
-## stream depression tweets for a week (60 secs x 60 mins * 24 hours *  7 days)
-stream_tweets(
-    "depression, sad, depressed",
-    timeout = 60 * 60 * 24 * 1,
-    file_name = "tweetsaboutdepression.json",
-    parse = FALSE
-)
 
-## read in the data as a tidy tbl data frame
-depression_tidy <- parse_stream("tweetsaboutdepression.json")
