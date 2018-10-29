@@ -64,12 +64,31 @@ depression_tweets6 <- search_tweets("depressed",
                                     "lang:en", geocode = lookup_coords("usa"),
                                     n = 18000, type = "recent", include_rts = FALSE)
 
+# 11/27/18
+depression_tweets7 <- search_tweets("depressed",
+                                    "lang:en", geocode = lookup_coords("usa"),
+                                    n = 18000, type = "recent", include_rts = FALSE)
+
+# 11/28/18
+depression_tweets8 <- search_tweets("depressed",
+                                    "lang:en", geocode = lookup_coords("usa"),
+                                    n = 18000, type = "recent", include_rts = FALSE)
+
+# 11/29/18
+depression_tweets9 <- search_tweets("depressed",
+                                    "lang:en", geocode = lookup_coords("usa"),
+                                    n = 18000, type = "recent", include_rts = FALSE)
+
+
 # Bind together new data
 depression_tweets <- rbind(depression_tweets1, depression_tweets2)
 depression_tweets <- rbind(depression_tweets, depression_tweets3)
 depression_tweets <- rbind(depression_tweets, depression_tweets4)
 depression_tweets <- rbind(depression_tweets, depression_tweets5)
 depression_tweets <- rbind(depression_tweets, depression_tweets6)
+depression_tweets <- rbind(depression_tweets, depression_tweets7)
+depression_tweets <- rbind(depression_tweets, depression_tweets8)
+depression_tweets <- rbind(depression_tweets, depression_tweets9)
 depression_tweets <- depression_tweets[-duplicated(depression_tweets)]
 
 
@@ -97,7 +116,11 @@ write_json(depression_tweets3, './Raw Tweets/depression_tweets_181123.json')
 write_json(depression_tweets4, './Raw Tweets/depression_tweets_181124.json')
 write_json(depression_tweets5, './Raw Tweets/depression_tweets_181125.json')
 write_json(depression_tweets6, './Raw Tweets/depression_tweets_181126.json')
-write_json(standard, '.Raw Tweets/standard.json')
+write_json(depression_tweets7, './Raw Tweets/depression_tweets_181127.json')
+write_json(depression_tweets8, './Raw Tweets/depression_tweets_181128.json')
+write_json(depression_tweets9, './Raw Tweets/depression_tweets_181129.json')
+write_json(depression_tweets, './Raw Tweets/depression_tweets_all.json')
+write_json(standard, './Raw Tweets/standard.json')
 
 
 # DESCRIPTIVE STATS -------------------------------------------------------
@@ -112,7 +135,6 @@ ts_plot(depression_tweets, "30 minutes") +
         subtitle = "Twitter status (tweet) counts aggregated using 30 minute intervals",
         caption = "\nSource: Data collected from Twitter's REST API via rtweet"
     )
-
 
 # Plot frequency of tweets by the hour
 standard %>%
@@ -130,7 +152,23 @@ standard %>%
          x = 'Time of Day (5 minute intervals, military time)',
          y = 'Frequency of Tweets') +
     xlim(c(0,24))
-    
+
+
+# Need to make sure you do a balanced sample
+# Also need to make sure you correctly label...
+# Plot frequency of tweets by Weekday
+ggplot(standard) + 
+    # Plot in 5 minutes intervals
+    geom_bar(mapping = aes(c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", 
+                             "Friday", "Saturday")[wday(created_at)]), 
+                   fill = 'skyblue3', alpha = .8) +
+    theme_minimal() +
+    theme(plot.title = element_text(face = 'bold')) +
+    labs(title = 'Frequency of \'Depressed\' Tweets by the Hour', 
+         subtitle = 'Tweet counts aggregated by time of day',
+         caption = "Source: Data collected from Twitter's REST API via rtweet",
+         x = 'Time of Day (5 minute intervals, military time)',
+         y = 'Frequency of Tweets') 
 
 # Plot location of tweets
 # Geocode tweets
