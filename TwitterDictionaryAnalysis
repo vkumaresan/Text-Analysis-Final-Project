@@ -1,0 +1,141 @@
+library(jsonlite) # read and write json files
+library(dplyr) # tidyverse
+library(tidytext) # tidy text analysis
+library(ggplot2) # viz
+
+# Read in tweets
+depression_tweets <- fromJSON('./Raw Tweets/depression_tweets_all.json')
+random_tweets <- fromJSON('./Raw Tweets/random_tweets_all.json')
+
+# Load stop_words
+data("stop_words")
+
+# Depressed
+# Create tidytext 
+tidy_depressed_tweets <- depression_tweets %>%
+    select(created_at, text) %>%
+    # Tokenize by word
+    unnest_tokens('word', text) %>%
+    # Take out stopwords
+    anti_join(stop_words) 
+
+# Get top words
+depressed_top_words <-tidy_depressed_tweets %>%
+    count(word) %>%
+    arrange(desc(n))
+
+# Take out junk  
+depressed_top_words <-
+    depressed_top_words[-grep("https|t.co|amp|rt",
+                              depressed_top_words$word),]
+
+# Random
+# Create tidytext 
+tidy_random_tweets <- random_tweets %>%
+    select(created_at, text) %>%
+    # Tokenize by word
+    unnest_tokens('word', text) %>%
+    # Take out stopwords
+    anti_join(stop_words) 
+
+# Get top words
+random_top_words <- tidy_random_tweets %>%
+    count(word) %>%
+    arrange(desc(n))
+
+# Take out junk
+random_top_words <-
+    random_top_words[-grep("https|t.co|amp|rt",
+                              random_top_words$word),]
+
+
+# Comparison
+# Create prop metric - proportion of docs containing word
+# Combine i'm and im
+depressed_top_words[depressed_top_words$word == "i’m",'n'] <- 
+    depressed_top_words[depressed_top_words$word == "i’m",'n'] +
+    depressed_top_words[depressed_top_words$word == 'im','n']
+depressed_top_words <- depressed_top_words %>%
+    filter(word != 'im')
+
+random_top_words[random_top_words$word == "i’m",'n'] <- 
+    random_top_words[random_top_words$word == "i’m",'n'] +
+    random_top_words[random_top_words$word == 'im','n']
+random_top_words <- random_top_words %>%
+    filter(word != 'im')
+
+
+# Comparison
+# Create prop metric - proportion of docs containing word
+depressed_top_words <- depressed_top_words %>%
+    mutate(prop = n/nrow(depression_tweets))
+random_top_words <- random_top_words %>%
+    mutate(prop = n/nrow(random_tweets))
+
+# Compare proportions between depressed and random samples
+compare_top_words <- depressed_top_words %>%
+    left_join(random_top_words, by = 'word') %>%
+    mutate(prop.diff = prop.x-prop.y,
+           prop.ratio = prop.x/prop.y)
+
+# Viz - Prop ratio depressed
+compare_top_words %>%
+    arrange(desc(prop.ratio)) %>%
+    # Removed depressed because it was obvious
+    slice(2:20) %>%
+    ggplot() + 
+    geom_bar(mapping = aes(x = reorder(word, -prop.ratio), y = prop.ratio), 
+             stat = 'identity', fill = 'skyblue3') +
+    theme_minimal() + 
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    labs(x = 'Word', 
+         y = 'Proportion ratio',
+         title = 'Proportion ratio',
+         subtitle = 'Depressed sample/random sample')
+
+
+# Viz - Prop ratio depressed
+compare_top_words %>%
+    arrange(prop.ratio) %>%
+    # Removed depressed because it was obvious
+    slice(1:20) %>%
+    ggplot() + 
+    geom_bar(mapping = aes(x = reorder(word, prop.ratio), y = prop.ratio), 
+             stat = 'identity', fill = 'darkred') +
+    theme_minimal() + 
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    labs(x = 'Word', 
+         y = 'Proportion ratio',
+         title = 'Proportion ratio',
+         subtitle = 'Depressed sample/random sample')    
+
+
+# Viz - Prop diff depressed
+compare_top_words %>%
+    arrange(desc(prop.diff)) %>%
+    # Removed depressed because it was obvious
+    slice(2:20) %>%
+    ggplot() + 
+    geom_bar(mapping = aes(x = reorder(word, -prop.diff), y = prop.diff), 
+             stat = 'identity', fill = 'skyblue3') +
+    theme_minimal() + 
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    labs(x = 'Word', 
+         y = 'Proportion Difference',
+         title = 'Proportion Difference',
+         subtitle = 'Depressed sample - random sample')
+
+# Viz - Prop diff random
+compare_top_words %>%
+    arrange(prop.diff) %>%
+    # Removed depressed because it was obvious
+    slice(1:20) %>%
+    ggplot() + 
+    geom_bar(mapping = aes(x = reorder(word, prop.diff), y = prop.diff), 
+             stat = 'identity', fill = 'darkred') +
+    theme_minimal() + 
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    labs(x = 'Word', 
+         y = 'Proportion Difference',
+         title = 'Proportion Difference',
+         subtitle = 'Depressed sample - random sample')
