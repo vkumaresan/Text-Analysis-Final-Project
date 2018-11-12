@@ -408,3 +408,87 @@ depressed_text_network <- CreateTextnet(prepped_depressed)
 # Viz
 VisTextNet(depressed_text_network, label_degree_cut = 0)
 VisTextNetD3(depressed_text_network)
+
+
+# WORD2VEC ----------------------------------------------------------------
+library(tidytext)
+#install.packages('widyr')
+library(widyr)
+library(tidyr)
+#install.packages('irlba')
+library(irlba)
+install.packages('broom')
+library(broom)
+
+dep_tweets <- fromJSON('/Users/annaberman/Desktop/703 Text Analysis/FinalProject/Raw Tweets/depression_tweets_181120.json')
+
+# Take out retweets 
+dep_tweets <- dep_tweets %>%
+    filter(is_retweet == F) %>%
+    select(text)
+
+# Create tweet id
+dep_tweets$postID <- row.names(dep_tweets)
+
+# Calculate probs (containing stopwords)
+unigram_probs <- dep_tweets %>%
+    unnest_tokens(word, text) %>%
+    count(word, sort = TRUE) %>%
+    mutate(p = n/sum(n))
+unigram_probs
+
+# Defining context window
+tidy_skipgrams <- dep_tweets %>%
+    unnest_tokens(ngram, text, token = 'ngrams', n=8) %>%
+    mutate(ngramID = row_number()) %>%
+    unite(skipgramID, postID, ngramID) %>%
+    unnest_tokens(word, ngram)
+
+# Calculate probs of words being near each other
+skipgram_probs <- tidy_skipgrams %>%
+    pairwise_count(word, skipgramID, diag = TRUE, sort = TRUE) %>%
+    mutate(p = n/sum(n))
+
+# Normalized probability
+normalized_prob <- skipgram_probs %>%
+    filter(n > 20) %>%
+    rename(word1 = item1, word2 = item2) %>%
+    left_join(unigram_probs %>%
+                  select(word1 = word, p1 = p),
+              by = "word1") %>%
+    left_join(unigram_probs %>%
+                  select(word2 = word, p2 = p),
+              by = "word2") %>%
+    mutate(p_together = p / p1 / p2)
+
+# Words most associated with depressed
+normalized_prob %>%
+    filter(word1 == 'depressed') %>%
+    arrange(-p_together)
+
+# Matrix Factorization
+pmi_matrix <- normalized_prob %>% 
+    mutate(pmi = log10(p_together)) %>% 
+    cast_sparse(word1, word2, pmi)
+
+
+# Reduce dimensionality
+#remove missing data 
+pmi_matrix@x[is.na(pmi_matrix@x)] <- 0 
+#next we run SVD
+pmi_svd <- irlba(pmi_matrix, 256, maxit = 500)
+#next we output the word vectors: 
+word_vectors <- pmi_svd$u 
+rownames(word_vectors) <- rownames(pmi_matrix)
+
+# Find synonyms
+search_synonyms <- function(word_vectors, selected_vector) {
+    similarities <- word_vectors %*% selected_vector %>%
+        tidy() %>%
+        as_tibble() %>% 
+        rename(token = .rownames, similarity = unrowname.x.)
+    similarities %>% arrange(-similarity)
+}
+
+depressed <- search_synonyms(word_vectors, word_vectors['depressed',])
+depressed
