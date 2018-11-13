@@ -1,0 +1,39 @@
+#install.packages('devtools')
+#library(devtools)
+#install_github("cbail/textnets")
+library(textnets) # network analyis
+library(jsonlite) # json
+
+# Read in tweets
+setwd('/Users/annaberman/Desktop/703 Text Analysis/FinalProject')
+depression_standard <- fromJSON('./Raw Tweets/standard.json')
+random_standard <- fromJSON('./Raw Tweets/random_standard.json')
+
+# Depressed words
+# Pre-process text network
+prepped_depressed <- PrepText(depression_standard, groupvar = 'id', 
+                              textvar = "content", node_type = "words", 
+                              tokenizer = "words", pos = "nouns", 
+                              remove_stop_words = TRUE, 
+                              compound_nouns = TRUE)
+
+# Create Text Network
+depressed_text_network <- CreateTextnet(prepped_depressed)
+
+# Viz
+VisTextNet(depressed_text_network, label_degree_cut = 10)
+VisTextNetD3(depressed_text_network)
+
+# Save html widget
+install.packages('htmlwidgets')
+library(htmlwidgets)
+vis <- VisTextNetD3(depressed_text_network,
+                    height=1000,
+                    width=1400,
+                    bound=FALSE,
+                    zoom=TRUE,
+                    charge=-30)
+saveWidget(vis, "depressed_textnet.html")
+vis
+
+write.csv(prepped_depressed, file = 'prepped_depressed.csv')
