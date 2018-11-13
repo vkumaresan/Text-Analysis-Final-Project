@@ -2,6 +2,8 @@ library(jsonlite) # read and write json files
 library(dplyr) # tidyverse
 library(tidytext) # tidy text analysis
 library(ggplot2) # viz
+library(lubridate) # dates
+library(gridExtra) # viz arrangement
 
 # Read in tweets
 depression_tweets <- fromJSON('./Raw Tweets/depression_tweets_all.json')
@@ -10,6 +12,24 @@ random_tweets <- fromJSON('./Raw Tweets/random_tweets_all.json')
 # Load stop_words
 data("stop_words")
 
+# Create tidytext 
+# Depressed
+tidy_depressed_tweets <- depression_tweets %>%
+    select(created_at, text) %>%
+    # Tokenize by word
+    unnest_tokens('word', text) %>%
+    # Take out stopwords
+    anti_join(stop_words) 
+
+# Random
+tidy_random_tweets <- random_tweets %>%
+    select(created_at, text) %>%
+    # Tokenize by word
+    unnest_tokens('word', text) %>%
+    # Take out stopwords
+    anti_join(stop_words) 
+
+# PROPORTION OF TWEETS --------------------------------------------------------
 # Depressed
 # Create tidytext 
 tidy_depressed_tweets <- depression_tweets %>%
@@ -139,3 +159,131 @@ compare_top_words %>%
          y = 'Proportion Difference',
          title = 'Proportion Difference',
          subtitle = 'Depressed sample - random sample')
+
+
+
+# TF-IDF ---------------------------------------------------------------------
+# Not helpful - lots of usernames
+# Create tidy text
+tidy_depressed_tfidf <- depression_tweets %>%
+    select(created_at,text) %>%
+    unnest_tokens("word", text) %>%
+    anti_join(stop_words) %>%
+    count(word, created_at) %>%
+    # Identify unusual words that might set one document apart from the others
+    bind_tf_idf(word, created_at, n)
+
+# A measure of how frequently a term appears, how unusal
+top_tfidf <- tidy_depressed_tfidf %>%
+    arrange(desc(tf_idf))
+
+
+
+# SENTIMENT ANALYSIS -----------------------------------------------------------
+
+# How many posiitive and negative words per tweet
+depressed_tweet_sentiment <- tidy_depressed_tweets %>%
+    inner_join(get_sentiments("bing")) %>%
+    count(created_at, sentiment) 
+
+# Timestamp 
+tidy_depressed_tweets <- tidy_depressed_tweets %>%
+    # Day/Hour
+    mutate(date = as.POSIXct(created_at, format="%Y-%m-%d %H")) %>%
+    # Hour
+    mutate(hour = hour(date))
+
+# Day/Hour Sentiment Analysis Viz
+# Negative tweets by day
+depressed_sentiment_plot_neg <-
+    tidy_depressed_tweets %>%
+    inner_join(get_sentiments("bing")) %>% 
+    filter(sentiment=="negative") %>%
+    count(date, sentiment)
+
+# Negative tweets by day
+depressed_sentiment_plot_pos <-
+    tidy_depressed_tweets %>%
+    inner_join(get_sentiments("bing")) %>% 
+    filter(sentiment=="positive") %>%
+    count(date, sentiment)
+
+# Plot tweets per day
+g1 <- ggplot()+
+    # Negative Tweets
+    geom_line(data = depressed_sentiment_plot_neg, mapping = aes(x=date, y=n), 
+              color="red") + 
+    theme_minimal()+
+    ggtitle('Negative Tweets') + 
+    ylab("Frequency of Sentiment") +
+    xlab("Time")
+g2 <- ggplot()+
+    # Positive Tweets
+    geom_line(data = depressed_sentiment_plot_pos, mapping = aes(x=date, y=n), 
+              color="green") + 
+    theme_minimal()+
+    ggtitle('Positive Tweets') + 
+    ylab("Frequency of Sentiment") +
+    xlab("Time")
+g3 <- ggplot()+
+    # Negative Tweets
+    geom_line(data = depressed_sentiment_plot_neg, mapping = aes(x=date, y=n), 
+              color="red") + 
+    # Positive Tweets
+    geom_line(data = depressed_sentiment_plot_pos, mapping = aes(x=date, y=n), 
+              color="green") + 
+    theme_minimal()+
+    ggtitle('Negative and Positive Tweets') + 
+    ylab("Frequency of Sentiment") +
+    xlab("Time")
+
+grid.arrange(g1, g2, g3, nrow = 2,
+             top = 'Frequency of Sentiment in Depressed Tweets')
+
+
+
+# Hour Sentiment Analysis Viz
+# Negative tweets by day
+depressed_sentiment_plot_neg <-
+    tidy_depressed_tweets %>%
+    inner_join(get_sentiments("bing")) %>% 
+    filter(sentiment=="negative") %>%
+    count(hour, sentiment)
+
+# Negative tweets by day
+depressed_sentiment_plot_pos <-
+    tidy_depressed_tweets %>%
+    inner_join(get_sentiments("bing")) %>% 
+    filter(sentiment=="positive") %>%
+    count(hour, sentiment)
+
+# Plot tweets per day
+g1 <- ggplot()+
+    # Negative Tweets
+    geom_line(data = depressed_sentiment_plot_neg, mapping = aes(x=hour, y=n), 
+              color="red") + 
+    theme_minimal()+
+    ggtitle('Negative Tweets') + 
+    ylab("Frequency of Sentiment") +
+    xlab("Hour of Day")
+g2 <- ggplot()+
+    # Positive Tweets
+    geom_line(data = depressed_sentiment_plot_pos, mapping = aes(x=hour, y=n), 
+              color="green") + 
+    theme_minimal()+
+    ggtitle('Positive Tweets') + 
+    ylab("Frequency of Sentiment") +
+    xlab("Hour of Day")
+g3 <- ggplot()+
+    # Negative Tweets
+    geom_line(data = depressed_sentiment_plot_neg, mapping = aes(x=hour, y=n), 
+              color="red") + 
+    # Positive Tweets
+    geom_line(data = depressed_sentiment_plot_pos, mapping = aes(x=hour, y=n), 
+              color="green") + 
+    theme_minimal()+
+    ggtitle('Negative and Positive Tweets') + 
+    ylab("Frequency of Sentiment") +
+    xlab("Hour of Day")
+grid.arrange(g1, g2, g3, nrow = 2,
+             top = 'Frequency of Sentiment in Depressed Tweets (Hour of Day)')
